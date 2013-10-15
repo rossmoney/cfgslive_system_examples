@@ -20,16 +20,15 @@ if(isset($_GET['action']))
 			<tbody>
 					<?php
 
-					$bookings_teacher = query("SELECT pmb.id, pmb.student_id, pmb.teacher_id, pmb.timeslot, pmb.breakslot, pmb.focus
+					$bookings_teacher = query("SELECT DISTINCT pmb.id, pmb.student_id, pmb.teacher_id, pmb.timeslot, pmb.breakslot, pmb.focus
 					, pmb.timestamp, u_student.firstname as Student_Firstname, u_student.lastname as Student_Lastname, u_teacher.firstname as Teacher_Firstname,
-					u_teacher.lastname as Teacher_Lastname, s.subject as Teacher_Subject
+					u_teacher.lastname as Teacher_Lastname
 					FROM parents_meeting_booking pmb
 					inner join users u_teacher ON u_teacher.id = pmb.teacher_id
 					inner join users u_student ON u_student.id = pmb.student_id
 					inner join users_to_subjects us ON us.user_id = u_teacher.id
 					inner join jobs j ON j.id = us.job_id
-					inner join subjects s ON s.id = us.subject_id
-					WHERE pmb.teacher_id = '" . $_GET['teacher_id'] . "' AND j.name = 'Teacher' ORDER BY pmb.timeslot DESC"
+					WHERE pmb.teacher_id = '" . $_GET['teacher_id'] . "' AND j.id IN (5, 6, 8) ORDER BY pmb.timeslot DESC"
 					);
 
 					$printable_timeslots = array(
@@ -44,25 +43,22 @@ if(isset($_GET['action']))
 							{
 								if( $booking['timeslot'] == $i)
 								{
-									if( $booking['student_id'] > 0 && $booking['breakslot'] != 0 )
+									if( $booking['student_id'] > 0 && $booking['breakslot'] == 0 || $booking['breakslot'] == 2 )
 									{
 										echo '<tr>';
 										echo '<td>' . $printable_timeslots[$i] . 'pm</td>';
 										echo '<td style="color: red;">NO</td>';
 										echo '</tr>';
+										$filled = TRUE;
 									}
-									$filled = TRUE;
 								}
 							}
 							if(!$filled)
 							{
-								if( is_null($booking['student_id']) )
-								{
 									echo '<tr class="success">';
 									echo '<td>' . $printable_timeslots[$i] . 'pm</td>';
 									echo '<td style="color: green; text-align: left;">YES</td>';
 									echo '</tr>';
-								}
 							}
 						}
 
@@ -146,46 +142,99 @@ if(isset($_GET['action']))
 	}
 	if($_GET['action'] == 'teachersAvailableForSlot')
 	{
-		/*if($parentsMeetingMainPeriod)
+		$teachers_on_timeslot = query("SELECT pmb.teacher_id as Teacher_ID
+			 FROM parents_meeting_booking pmb
+			 WHERE pmb.timeslot = " . $_GET['timeslot'] . " AND pmb.breakslot IN (0, 2)");
+
+		if($parentsMeetingMainPeriod)
 		{
-			$teachers_available = query("SELECT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname
+			$teachers_available = query("SELECT DISTINCT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname, s.subject as Subject, us.subject_id as SubID
 			 FROM users u_teacher
-			 LEFT join parents_meeting_booking pmb ON pmb.teacher_id = u_teacher.id
 			 inner join users_to_subjects us ON us.user_id = u_teacher.id
 			 inner join jobs j ON j.id = us.job_id
-			 WHERE pmb.timeslot IS NULL AND j.name = 'Teacher' ORDER BY Teacher_Lastname ASC");
+			 inner join subjects s ON s.id = us.subject_id
+			 WHERE j.id IN (5, 6, 8) ORDER BY Teacher_Lastname ASC");
 		} else {
-			$teachers_available = query("SELECT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname
+			$teachers_available = query("SELECT DISTINCT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname, s.subject as Subject, us.subject_id as SubID
 			FROM parents_meeting_early_access pm_ea
 			INNER JOIN users u_teacher ON u_teacher.id = pm_ea.teacher_id
 			inner join users_to_subjects us ON us.user_id = u_teacher.id
 			inner join jobs j ON j.id = us.job_id
-			LEFT join parents_meeting_booking pmb ON pmb.teacher_id = u_teacher.id
-			WHERE pm_ea.student_id = '" . $userInfo['id'] . "' AND pmb.timeslot IS NULL AND j.name = 'Teacher' ORDER BY Teacher_Lastname ASC");
-		}*/
+			inner join subjects s ON s.id = us.subject_id
+			WHERE pm_ea.student_id = '" . $userInfo['id'] . "' AND j.id IN (5, 6, 8) ORDER BY Teacher_Lastname ASC");
+		}
 
 		@mysql_data_seek($teachers_available, 0);
-		$output = "";
+		$teacher_list = array();
 		while($teacher = mysql_fetch_assoc($teachers_available))
 		{
-			$output .= "<option value=\"" . $teacher['Teacher_ID'] . "\">" . $teacher['Teacher_Firstname'] . " " . $teacher['Teacher_Lastname'] . "</option>";
+			@mysql_data_seek($teachers_on_timeslot, 0);
+			$remove_teacher = FALSE;
+			if(@mysql_num_rows($teachers_on_timeslot) > 0)
+			{
+				while($teacher_timeslot = @mysql_fetch_assoc($teachers_on_timeslot))
+				{
+					if($teacher['Teacher_ID'] ==  $teacher_timeslot['Teacher_ID'])
+					{
+						$remove_teacher = TRUE;
+					}
+				}
+			}
+			if(!$remove_teacher)
+			{
+				$teacher_list[] = $teacher;
+			}
+		}
+
+		$output = "<option value=\"\" disabled=\"true\" selected=\"true\">Select a Teacher</option>";
+		foreach($teacher_list as $teacher)
+		{
+			$output .= "<option data-subject=\"" . $teacher['SubID'] . "\" value=\"" . $teacher['Teacher_ID'] . "\">" . $teacher['Teacher_Firstname'] . " " . $teacher['Teacher_Lastname'] . " (" . $teacher['Subject'] . ")</option>";
 		}
 		echo $output;
 	}
 	if($_GET['action'] == 'studentsAvailableForSlot')
 	{
 		echo '<option value="Break">Allocate Break</option>';
-		//$timeslot_available = query("SELECT * FROM parents_meeting_booking pmb WHERE pmb.timeslot = " . $_GET['timeslot']);
 
+		$query = "SELECT pmb.student_id as StuID
+			FROM parents_meeting_booking pmb
+			WHERE pmb.timeslot = " . $_GET['timeslot'];
+		//echo $query;
+		$students_on_timeslot = query($query);
+		//echo mysql_num_rows($students_on_timeslot);
 
-		/*$students_available = query("SELECT u.id as StuID, u.firstname, u.lastname, sd.reg as Form
+		$students_available = query("SELECT u.id as StuID, u.firstname, u.lastname, sd.reg as Form
 			FROM sims_data sd
 			INNER join users u ON u.admission_no = sd.adno
-			LEFT join parents_meeting_booking pmb ON pmb.student_id = u.id
-			WHERE pmb.id IS NULL AND pmb.timeslot = '" . $_GET['timeslot'] . "' ORDER BY u.lastname ASC");*/
+			WHERE u.year = " . $parentsMeetingCurrentYear. " ORDER BY u.lastname ASC");
+
 		@mysql_data_seek($students_available, 0);
-		$output = "";
+		$student_list = array();
+		$prev = "";
 		while($student = mysql_fetch_assoc($students_available))
+		{
+			@mysql_data_seek($students_on_timeslot, 0);
+			$remove_student = FALSE;
+			while($student_timeslot = mysql_fetch_assoc($students_on_timeslot))
+			{
+				if($student['StuID'] ==  $student_timeslot['StuID'])
+				{
+					$remove_student = TRUE;
+				}
+			}
+			if(!$remove_student)
+			{
+				if(@$prev['StuID'] != @$student['StuID'])
+				{
+					$student_list[] = $student;
+				}
+			}
+			$prev = $student;
+		}
+
+		$output = "";
+		foreach($student_list as $student)
 		{
 			$output .=  "<option value=\"" . $student['StuID'] . "\">" . $student['firstname'] . " " . $student['lastname'] . " (" . $student['Form'] . ") </option>";
 		}

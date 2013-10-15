@@ -9,6 +9,9 @@ $(document).ready(function(){
 			$("#studentName").load("/components/parents-meeting/pm_ajax.php?action=studentsAvailableForSlot&timeslot=" + $(this).attr('data-timeslot'));
 		}
 	});
+	$("#teacherName").change(function() {
+		$('#teacherSubject').val($('option:selected', this).attr('data-subject'));
+	});
 	$("#name").change(function() {
 		var tid = $("#name").val();
 		$('#teacherTimetable').load("/components/parents-meeting/pm_ajax.php?action=getTeacherTimetable&teacher_id="+ tid);
@@ -57,5 +60,8 @@ $(document).ready(function(){
 				location.reload(true);
 			}
 		});
+	});
+	$(".yourTeachers").click(function() {
+		$('#yourTeacherModal').modal('show');
 	});
 });

@@ -15,7 +15,7 @@ if(isset($loggedin) && $loggedin == true)
 			FROM sims_data sd
 			INNER join users u ON u.admission_no = sd.adno
 			LEFT JOIN parents_meeting_early_access pm_ea ON pm_ea.student_id = u.id
-			WHERE u.id != 0 AND u.student = 1 AND pm_ea.id IS NULL ORDER BY u.lastname ASC");
+			WHERE u.id != 0 AND u.student = 1 AND pm_ea.id IS NULL AND u.year = " . $parentsMeetingCurrentYear. " ORDER BY u.lastname ASC");
 
 		while($row = mysql_fetch_object($result)) {
 			$students[$row->id] = array($row->firstname." ".$row->lastname, $row->reg);
@@ -87,7 +87,7 @@ if(isset($loggedin) && $loggedin == true)
 							inner join users_to_subjects us ON us.user_id = u_teacher.id
 							inner join jobs j ON j.id = us.job_id
 							inner join subjects s ON s.id = us.subject_id
-							WHERE pmb.teacher_id = '" . $userInfo['id'] . "' AND j.name = 'Teacher' ORDER BY pmb.timeslot DESC"
+							WHERE pmb.teacher_id = '" . $userInfo['id'] . "' AND j.id IN (5, 6, 8) ORDER BY pmb.timeslot DESC"
 							);
 
 							$printable_timeslots = array(
@@ -111,6 +111,7 @@ if(isset($loggedin) && $loggedin == true)
 												echo '<td>' . $booking['Teacher_Subject'] . '</td>';
 												echo '<td><a class="btnCancelBooking btn btn-danger" data-bookingid="' . $booking['id']. '" >Cancel</a></td>';
 												echo '</tr>';
+												$filled = TRUE;
 											}
 											if( $booking['breakslot'] == 2 )
 											{
@@ -122,8 +123,8 @@ if(isset($loggedin) && $loggedin == true)
 												<td><a class="btnCancelBreak btn btn-danger" href="#" data-bookingid="<?php echo $booking['id']; ?>">Cancel</a></td>
 											</tr>
 											<?php
+												$filled = TRUE;
 											}
-											$filled = TRUE;
 										}
 									}
 									if(!$filled)

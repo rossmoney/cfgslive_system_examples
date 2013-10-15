@@ -1,7 +1,6 @@
 <?php
-if(isset($_SESSION['main_access']) || isset($_SESSION['early_access']))
+if((isset($_SESSION['main_access']) || isset($_SESSION['early_access'])) && $userInfo['staff'] == 0)
 {
-
 } else {
 	die("You do not have access to this page.");
 }
@@ -33,8 +32,8 @@ if(isset($_SESSION['main_access']) || isset($_SESSION['early_access']))
 					inner join users u_student ON u_student.id = pmb.student_id
 					inner join users_to_subjects us ON us.user_id = u_teacher.id
 					inner join jobs j ON j.id = us.job_id
-					inner join subjects s ON s.id = us.subject_id
-					WHERE pmb.student_id = '" . $userInfo['id'] . "' AND j.name = 'Teacher' ORDER BY pmb.timeslot DESC"
+					inner join subjects s ON s.id = pmb.subject_id
+					WHERE pmb.student_id = '" . $userInfo['id'] . "' AND j.id IN (5, 6, 8) ORDER BY pmb.timeslot DESC"
 					);
 
 					$printable_timeslots = array(
@@ -93,23 +92,26 @@ if(isset($_SESSION['main_access']) || isset($_SESSION['early_access']))
 		</table>
 	</div>
 	<?php
-	if($_SESSION['early_access'] && !$parentsMeetingMainPeriod)
+	if(isset($_SESSION['early_access']) && !$parentsMeetingMainPeriod)
 	{
-		$teachers_list = query("SELECT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname
+		$teachers_list = query("SELECT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname, sub.subject as Subject
 			FROM parents_meeting_early_access pm_ea
 			INNER JOIN users u_teacher ON u_teacher.id = pm_ea.teacher_id
 			inner join users_to_subjects us ON us.user_id = u_teacher.id
 			inner join jobs j ON j.id = us.job_id
-			WHERE pm_ea.student_id = '" . $userInfo['id'] . "' AND j.name = 'Teacher' ORDER BY Teacher_Lastname ASC");
+			inner join subjects sub ON sub.id = us.subject_id
+			WHERE pm_ea.student_id = '" . $userInfo['id'] . "' AND j.id IN (5, 6, 8) ORDER BY Teacher_Lastname ASC");
 	} else {
-		$teachers_list = query("SELECT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname
+		$teachers_list = query("SELECT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname, sub.subject as Subject
 		 	FROM users u_teacher
 		 	inner join users_to_subjects us ON us.user_id = u_teacher.id
 			inner join jobs j ON j.id = us.job_id
-		 	WHERE j.name = 'Teacher' ORDER BY Teacher_Lastname ASC");
+			inner join subjects sub ON sub.id = us.subject_id
+		 	WHERE j.id IN (5, 6, 8) ORDER BY Teacher_Lastname ASC");
 	}
 
 	?>
+	<a class="yourTeachers btn btn-primary" href="#">View Your Teachers</a>
 	<div class="span6">
 		View the timetable for
 		<select id="name" name="name">
@@ -117,12 +119,39 @@ if(isset($_SESSION['main_access']) || isset($_SESSION['early_access']))
 			<?php
 			while($teacher = mysql_fetch_assoc($teachers_list))
 			{
-				echo "<option value=\"" . $teacher['Teacher_ID'] . "\">" . $teacher['Teacher_Firstname'] . " " . $teacher['Teacher_Lastname'] . "</option>";
+				echo "<option value=\"" . $teacher['Teacher_ID'] . "\">" . $teacher['Teacher_Firstname'] . " " . $teacher['Teacher_Lastname'] . " (" . $teacher['Subject']. ")</option>";
 			}
 			?>
 		</select>
 		<div id="teacherTimetable">
 
+		</div>
+	</div>
+	<div class="modal hide fade" id="yourTeacherModal">
+		<div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal">×</button>
+			<h3>Your Teachers</h3>
+		</div>
+		<div class="modal-body">
+		<?php
+		$teachers = query("SELECT DISTINCT u_teacher.id as Teacher_ID, u_teacher.firstname as Teacher_Firstname, u_teacher.lastname as Teacher_Lastname,
+u_student.id as Student_ID, u_student.firstname as Student_Firstname, u_student.lastname as Student_Lastname, sd.reg as Form, s.subject as Subject
+FROM users u_teacher
+inner join users u_student
+inner join sims_data sd ON sd.adno = u_student.admission_no
+inner join sims_students_to_classes sstc ON sstc.adno = u_student.admission_no
+inner join sims_teachers_to_classes sttc ON sttc.initials = u_teacher.initials
+inner join users_to_subjects us ON us.user_id = u_teacher.id
+inner join jobs j ON j.id = us.job_id
+inner join subjects s ON s.id = us.subject_id
+WHERE u_student.id = " . $userInfo['id']. " AND u_teacher.staff = 1 AND j.id IN (5, 6, 8) AND sstc.class = sttc.class");
+
+		while($teacher = mysql_fetch_assoc($teachers))
+		{
+			echo '<p>' . $teacher['Teacher_Firstname'] . " " . $teacher['Teacher_Lastname']. '(' . $teacher['Subject'] . ')</p>';
+		}
+
+		?>
 		</div>
 	</div>
 	<div id="bookSlot" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
@@ -138,6 +167,7 @@ if(isset($_SESSION['main_access']) || isset($_SESSION['early_access']))
 					<select id="teacherName" name="name">
 					</select>
 				</div>
+				<input id="teacherSubject" name="subject_id" type="hidden" value="" />
 				<input id="timeSlot" name="timeSlot" type="hidden" value="" />
 				<input id="sender" name="sender" type="hidden" value="student" />
 				<label class="control-label" for="special">Note<br><small>Is there something specific you would like us to focus on?</small></label>
